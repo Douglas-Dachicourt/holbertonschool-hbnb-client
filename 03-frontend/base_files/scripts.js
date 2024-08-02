@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
- 
   const token = checkAuthentication();
 
   const loginForm = document.getElementById('login-form');
@@ -25,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-
 
   fetch('/03-frontend/mock-api/data/countries.json')
     .then(response => {
@@ -127,8 +125,6 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
 
-        const token = getCookie('token');
-        console.log('Token from getCookie:', token);
         if (token) {
           const addElem = document.getElementById('add-review');
           if (addElem) {
@@ -146,78 +142,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const reviewForm = document.getElementById('review-form');
   if (reviewForm) {
-    const placeId = new URLSearchParams(window.location.search).get('placeId');
+    reviewForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const reviewText = document.getElementById('review').value;
+      const placeId = getPlaceIdFromURL();
 
-    if (placeId) {
-      reviewForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const reviewText = reviewForm.review.value;
-
-        if (reviewText.trim() === '') {
-          alert('Please enter a review.');
-          return;
-        }
-
-        try {
-          await submitReview(token, placeId, reviewText);
-        } catch (error) {
-          console.error('Error submitting review:', error);
-          alert('Failed to submit review. Please try again.');
-        }
-      });
-    }
+      try {
+        await submitReview(token, placeId, reviewText);
+      } catch (error) {
+        console.error('Error submitting review:', error);
+        alert('Failed to submit review. Please try again.');
+      }
+    });
   }
 });
 
 async function submitReview(token, placeId, reviewText) {
-  try {
-    const response = await fetch(`http://127.0.0.1:5000/places/${placeId}/reviews`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ reviewText })
-    });
+  const response = await fetch(`http://127.0.0.1:5000/places/${placeId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ placeId, reviewText })
+  });
 
-    console.log('Response Status:', response.status);
-    console.log('Response Headers:', [...response.headers.entries()]);
-    console.log('Response Body:', await response.text());
-
-    if (response.ok) {
-      alert('Review submitted successfully!');
-      document.getElementById('review-form').reset();
-    } else {
-      throw new Error('Failed to submit review');
-    }
-  } catch (error) {
-    console.error('Error submitting review:', error);
-    alert('Failed to submit review. Please try again.');
+  if (response.ok) {
+    alert('Review submitted successfully!');
+    document.getElementById('review-form').reset();
+  } else {
+    throw new Error('Failed to submit review');
   }
 }
 
-function checkAuthentication() {
-  const token = getCookie('token');
-  console.log('Token found in checkAuthentication:', token);
-  
-  const isLoginPage = window.location.pathname.includes('login.html');
-  
-  if (!isLoginPage) {
-    const loginLink = document.getElementById('login-link');
-    if (loginLink) {
-      loginLink.style.display = token ? 'none' : 'block';
-    }
-  }
-
-  if (token) {
-    if (isLoginPage) {
-      window.location.href = 'index.html';
-    }
-  } else {
-    window.location.href = 'index.html';
-  }
-  return token;
+function getPlaceIdFromURL() {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('placeId');
 }
 
 function getCookie(name) {
@@ -227,6 +187,25 @@ function getCookie(name) {
     return parts.pop().split(';').shift();
   }
   return null;
+}
+
+async function fetchPlaces(token) {
+  try {
+    const response = await fetch('http://127.0.0.1:5000/places', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      credentials: 'include'
+    });
+    if (response.ok) {
+      const data = await response.json();
+      displayPlaces(data);
+    } else {
+      console.error('Failed to fetch places:', response.statusText);
+    }
+  } catch (error) {
+    console.error('Error fetching places:', error);
+  }
 }
 
 function displayPlaces(places) {
@@ -267,5 +246,45 @@ function initializeFiltering() {
         }
       });
     });
+  }
+}
+
+function checkAuthentication() {
+  const token = getCookie('token');
+  
+  const isLoginPage = window.location.pathname.includes('login.html');
+  
+  if (!isLoginPage) {
+    const loginLink = document.getElementById('login-link');
+    if (loginLink) {
+      loginLink.style.display = token ? 'none' : 'block';
+    }
+  }
+
+  if (token) {
+    if (isLoginPage) {
+      window.location.href = 'index.html';
+    } else {
+      fetchPlaces(token);
+    }
+  } else {
+    console.log('No token found. User is not authenticated.');
+  }
+}
+
+async function loginUser(email, password) {
+  try {
+    const response = await fetch('http://127.0.0.1:5000/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password }),
+      credentials: 'include'
+    });
+    return response;
+  } catch (error) {
+    console.error('Login error:', error);
+    throw error;
   }
 }
